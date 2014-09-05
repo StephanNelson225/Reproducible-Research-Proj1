@@ -1,0 +1,231 @@
+---
+title: "PA1_template.html"
+author: "SPN"
+date: "Thursday, September 04, 2014"
+output: html_document
+---
+
+Step 1. Download raw data and save as cvs
+```{r download}
+url<-"http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+
+download.file(url, destfile = "activity.zip", mode="wb") 
+unzip("activity.zip", files = NULL, list = FALSE, overwrite = TRUE,
+      junkpaths = FALSE, exdir = ".", unzip = "internal",
+      setTimes = FALSE)
+raw = read.csv("activity.csv", header=TRUE, row.names=NULL, 
+ stringsAsFactors=FALSE)
+
+```
+
+Step 2. Loading and preprocessing the data show any code that is needed to 
+Load the data (i.e. read.csv()). Examine that data to determine what is needed.
+There are more than 570,000 steps in the dataset but many NAs
+```{r examinedata}
+sum(raw$steps,na.rm=TRUE)# 570,608 steps
+summary(raw)#strongly skewed data with more than half of the step counts zero
+#initial count of NAs is 2304"
+summary(is.na(raw$steps)) # na totals totals
+with(raw,table(is.na(raw$steps), raw$date))#by date note some days have all nas
+#plot(raw$interval,raw$steps) #exploratory graphics note discontinuity separating hours.
+
+```
+
+Step2a. Process/transform the data (if necessary) into a format suitable for your analysis.  Response: Add a clean time variable and make interval a logical vector
+```{r processdata}
+ti<-rep(c("00:","01:", "02:","03:", "04:", "05:","06:", "07:","08:", "09:", "10:","11:", "12:","13:", "14:", "15:","16:", "17:","18:", "19:","20:","21:", "22:","23:"), each=12)
+me<-rep(c("00:00", "05:00","10:00","15:00","20:00","25:00", "30:00","35:00","40:00","45:00","50:00","55:00"), 24)
+ti_me<-paste(ti,me,sep="",collapse=NULL)
+time<-rep(ti_me,61)
+#time[1:24]
+raw1<-cbind(raw,time)
+raw1$time<-as.character(raw1$time)
+#interval should be a factor since it isn't a continuous variable
+raw1$interval<-as.factor(raw1$interval)
+#plot(raw1$interval,raw1$steps)
+#summary(raw1)
+```
+
+Add date variable changing from character to date format, add a logical vector to distinguish weekends from week days.
+```{r weekendfactor}
+require(lubridate)
+date1<-as.Date(raw1$date)
+day<-wday(date1, label = TRUE, abbr = TRUE)
+raw1_2<-cbind(date1,day,raw1)
+raw1_2$weekend<-raw1_2$day=="Sun" | raw1_2$day=="Sat" #weekend thus = TRUE
+raw1_2$weekend<-as.factor(raw1_2$weekend)
+levels(raw1_2$weekend)[levels(raw1_2$weekend)=="TRUE"] <- "Weekend"
+levels(raw1_2$weekend)[levels(raw1_2$weekend)=="FALSE"] <- "Weekday"
+
+```
+
+
+Create a new dataframe to eliminate 0's.  Now there are over 13,000 NAs
+```{r process2}
+raw2<-raw1_2
+raw2$steps[raw2$steps==0] <- NA #turn zeros into na.
+summary(raw2)# there are now 13,318 nas
+```
+
+
+Output 1 What is mean total number of steps taken per day? For this part of the assignment, you can ignore the missing values in the dataset. Make a histogram of the total number of steps taken each day. Note: histogram is called as a barchart as it is to show totals steps.
+
+```{r histogram1, fig.path="figures/"}
+require(plyr)
+daysteps<-aggregate(raw2$steps, by=list(raw2$date), "sum", na.rm=TRUE)
+barplot(daysteps$x, xlab="Dates: October 1, 2012 to November 30, 2012", ylab="Frequency of Steps", main="Number of Steps Taken Each Day")
+
+```
+
+Calculate and report the mean and median total number of steps taken per day
+```{r totalsteps}
+daystepsmean<-aggregate(raw2$steps, by=list(raw2$date), "mean", na.rm=TRUE)
+daystepsmedian<-aggregate(raw2$steps, by=list(raw2$date), "median", na.rm=TRUE)
+day_mean_med<-cbind(daystepsmean,daystepsmedian[2])
+names(day_mean_med)<-c("date", "meansteps", "mediansteps")
+day_mean_med
+```
+
+Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis). 
+```{r timeseriesplot1, fig.path="figures/"}
+require(plyr)
+dailysteps<-aggregate(raw2$steps, by=list(raw2$time), "mean", na.rm=TRUE)
+plot(dailysteps[,2], type="l", ylab="Step Count", xlab="Five Minute Intervals from 12:00 AM to 11:55 PM", main="Average Number of Steps Taken by Time Interval")
+
+```
+
+
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps? Answer: 8:35 am
+```{r mostintervalsteps}
+names(dailysteps)<-c("Time_24hrFormat", "Steps")
+highest<-dailysteps[with(dailysteps, order(-Steps)),]
+head(highest,1) #am
+
+```
+Archive to be safe, if you don't want to do this just rename raw 2 as raw3.
+```{r archive}
+write.csv(raw2, "activitypart1.csv", row.names=FALSE)
+```
+
+Clean up structure of dataframe.  Weekend is made a factor, as required in the second part of the assignment.
+
+```{r readdata}
+raw3<-read.csv("activitypart1.csv", header=TRUE, stringsAsFactors=FALSE)
+raw3$date1<-as.Date(raw3$date1)
+raw3$weekend<-as.factor(raw3$weekend)
+levels(raw3$weekend)[levels(raw3$weekend)=="TRUE"] <- "Weekend"
+levels(raw3$weekend)[levels(raw3$weekend)=="FALSE"] <- "Weekday"
+raw3$day<-as.factor(raw3$day)
+raw3$interval<-as.factor(raw3$interval)
+
+
+
+```
+
+Imputing missing values
+
+Note that there are a number of days/intervals where there are missing values (coded as NA). The presence of missing days may introduce bias into some calculations or summaries of the data.
+
+Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+
+```{r na_number}
+summary(is.na(raw3$steps)) # na totals totals
+#mean(raw3$steps, na.rm=TRUE)
+#a<-with(raw3,table(is.na(raw3$steps), raw3$date))#by date note some days have all nas
+#a
+#c<-with(raw3,table(is.na(raw3$steps), raw3$interval))
+#c
+#e<-as.data.frame.matrix(c)
+
+#d<-as.data.frame.matrix(with(raw3,table(is.na(raw3$steps), raw3$interval)))
+
+```
+
+
+Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+
+Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+
+Strategy for filling in missing values.  Missing values are to be expected with these device measures as a person's movements my not be determined to be "walking by the device algorithms.  The other options include more sedentary activities sitting, laying, and standing.  Also, the person may not be wearing the device.  Given the pattern of some days having very high NA's and the desire to eliminate zero's from the pattern, this missing value strategy first sets the NA's to 1 and then sets the dates with high proportions of NA's to the NA average across observations.  First set the 13,000 plus NA's to one.
+```{r meanraw}
+raw3$steps[is.na(raw3$steps)] <- 1
+summary(raw3$steps)
+```
+
+Then, for the dates identified with most NA's add the mean of steps across all observations.  The mean is determined prior to the first adjustment above.
+```{r fixdates}
+raw3$steps[raw3$date=="2012-10-01"]<-raw3$steps[raw3$date=="2012-10-01"] +33
+raw3$steps[raw3$date=="2012-10-02"]<-raw3$steps[raw3$date=="2012-10-02"] +33
+raw3$steps[raw3$date=="2012-10-08"]<-raw3$steps[raw3$date=="2012-10-08"] +33
+raw3$steps[raw3$date=="2012-10-25"]<-raw3$steps[raw3$date=="2012-10-25"] +33
+raw3$steps[raw3$date=="2012-10-29"]<-raw3$steps[raw3$date=="2012-10-29"] +33
+raw3$steps[raw3$date=="2012-11-01"]<-raw3$steps[raw3$date=="2012-11-01"] +33
+raw3$steps[raw3$date=="2012-11-04"]<-raw3$steps[raw3$date=="2012-11-04"] +33
+raw3$steps[raw3$date=="2012-11-08"]<-raw3$steps[raw3$date=="2012-11-08"] +33
+raw3$steps[raw3$date=="2012-11-09"]<-raw3$steps[raw3$date=="2012-11-09"] +33
+raw3$steps[raw3$date=="2012-11-10"]<-raw3$steps[raw3$date=="2012-11-10"] +33
+raw3$steps[raw3$date=="2012-11-14"]<-raw3$steps[raw3$date=="2012-11-14"] +33
+raw3$steps[raw3$date=="2012-11-15"]<-raw3$steps[raw3$date=="2012-11-15"] +33
+raw3$steps[raw3$date=="2012-11-30"]<-raw3$steps[raw3$date=="2012-11-30"] +33
+summary(raw3$steps)
+
+
+```
+
+Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. 
+
+
+```{r histogram2, fig.path="figures/"}
+require(plyr)
+daysteps1<-aggregate(raw3$steps, by=list(raw3$date), "sum", na.rm=TRUE)
+barplot(daysteps1$x, xlab="Dates: October 1, 2012 to November 30, 2012", ylab="Frequency of Steps", main="Number of Steps Taken Each Day: \nImputed Activity Data")
+
+
+```
+
+
+This table compares the original data processed by 0 = NA to the revised data which eliminated the NAs
+```{r totalstepsperday}
+daysteps1
+```
+
+
+
+Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?  The major impact is to eliminate the days with very low step counts or no step counts. 
+```{r means_medians}
+daystepsmean1<-aggregate(raw3$steps, by=list(raw3$date), "mean", na.rm=TRUE)
+daystepsmedian1<-aggregate(raw3$steps, by=list(raw3$date), "median", na.rm=TRUE)
+daystepsmean1$x<-round(daystepsmean1$x,0)
+day_mean_med1<-cbind(daystepsmean1,daystepsmedian1[2])
+names(day_mean_med1)<-c("date", "adj_meansteps", "adj_mediansteps")
+day_mean_med_combined<-cbind(day_mean_med,day_mean_med1[,c(2,3)])
+day_mean_med_combined
+```
+
+
+
+Are there differences in activity patterns between weekdays and weekends?
+
+For this part the weekdays() function may be of some help here. Use the dataset with the filled-in missing values for this part.
+
+Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). 
+
+
+
+```{r weekendvsweekday, fig.path="figures/"}
+dailysteps1<-aggregate(raw3$steps, by=list(raw3$weekend,raw3$time), "mean", na.rm=TRUE)
+par(mfrow=c(2,1))
+plot(dailysteps1$x[dailysteps1$Group.1=="Weekend"], type="l", ylab="Step Count", xlab="Five Minute Intervals from 12:00 AM to 11:55 PM", main="Average Number of Steps Taken by Time Interval - Weekend")
+plot(dailysteps1$x[dailysteps1$Group.1=="Weekday"], type="l", ylab="Step Count", xlab="Five Minute Intervals from 12:00 AM to 11:55 PM - Weekday", main="Average Number of Steps Taken by Time Interval - Weekday")
+
+
+```
+
+
+###**Conclusion**
+Comparing the plots, it is clear that weekday movement is more clustered before the work day begins and probably reflecting more sitting at ones desk during the rest of the day. 
+
+Weekend movement is more variable throughout the day and starts later in the day. 
+
