@@ -38,7 +38,6 @@ ti_me<-paste(ti,me,sep="",collapse=NULL)
 time<-rep(ti_me,61)
 p2<-cbind(p,time)
 p2$time<-as.character(p2$time)
-#interval should be a factor since it isn't a continuous variable
 p2$interval<-as.factor(p2$interval)
 
 ```
@@ -83,10 +82,9 @@ My mean steps per day in October and November was 9,354, the median steps per da
 Looking at the data, I started by checking out the NA values in my summary.  There were 2304 NA values in the dataset.  They were all clustered together over 8 days, 288 missing readings over 8 days.  I must have forgotten to turn on my fitbit!  That was something I needed to address but I'm not sure that it would affect my average since with excluded NA's was there going to be any difference.  I identified these NA dates and days of the week.  I couldn't help thinking that some days where my fitbit was on and charged I may have left it on my dresser for periods of time. These could account for my sub-12,000 step outcome.
 
 ```{r histogram1, fig.width= 10, fig.path="figures/plot-"}
-sum(p3$steps,na.rm=TRUE)# 570,608 steps
-summary(p3$steps)#strongly skewed data with more than half of the step counts zero
-#initial count of NAs is 2304"
-with(p3,table(is.na(p3$steps), p3$date))#by date note some days have all nas
+sum(p3$steps,na.rm=TRUE)
+summary(p3$steps)
+with(p3,table(is.na(p3$steps), p3$date))
 
 b=ggplot(daysteps, aes(x=dailysteps)) + geom_histogram(binwidth = 500) +
        xlab("Total Steps in the Day") + ylab("Number of Days") +
@@ -102,7 +100,7 @@ The pattern was as I would have expected, a peak at about in the early part of t
 
 ```{r dailysteppattern, fig.width=10, fig.path="figures/plot-"}
 dailysteps_all<-aggregate(p3$steps, by=list(p3$time), "mean", na.rm=TRUE)
-aa<-plot(dailysteps_all2[,2], type="l", ylab="Step Count", xlab=NA, main="Average Number of Steps Taken by Time Interval Mean of All Days", xaxt="n")
+aa<-plot(dailysteps_all[,2], type="l", ylab="Step Count", xlab=NA, main="Average Number of Steps Taken by Time Interval Mean of All Days", xaxt="n")
 axis(1,at=c(1,72,144,216,288),las=2,lab = c("12:00am","6:00am","12:00pm","6:00pm","11:55pm"))
 aa
 names(dailysteps_all)<-c("Time_24hrFormat", "Ave_Steps")
@@ -147,7 +145,6 @@ p3$steps[p3$date=="2012-11-30"]<-dailysteps_Weekday$x
 ```{r newbarplotofdaysteps, fig.width=10, fig.path="figures/plot-"}
 daysteps2<-aggregate(p3$steps, by=list(p3$date), "sum", na.rm=TRUE)
 names(daysteps2)<-c("date", "dailysteps")
-str(p3)
 require(ggplot2)
 c=ggplot(daysteps2, aes(x=date, y=dailysteps)) +geom_bar(stat="identity", fill=date)+
        xlab("Date of Observation") + ylab("Total Steps in the Day") +
@@ -176,7 +173,7 @@ median(daysteps2$dailysteps)
 
 ```{r, dailysteppatternafterimputting, fig.width=10, fig.path="figures/plot-"}
 dailysteps_all2<-aggregate(p3$steps, by=list(p3$time), "mean", na.rm=TRUE)
-e<-plot(dailysteps_all2[,2], type="l", ylab="Step Count", xlab=NA, main="Average Number of Steps Taken by Time Interval Mean of All Days", xaxt="n")
+e<-plot(dailysteps_all2[,2], type="l", ylab="Step Count", xlab=NA, main="Average Number of Steps Taken by Time Interval Mean of All Days after Imputting Missing Values", xaxt="n")
 axis(1,at=c(1,72,144,216,288),las=2,lab = c("12:00am","6:00am","12:00pm","6:00pm","11:55pm"))
 
 ```
@@ -210,7 +207,7 @@ k
 
 
 
-This plot shows the very small differences between the before and after imputation.
+The following plot shows the very small differences between the before and after imputation.
 ```{r beforeafterchange, fig.width=10, fig.path="figures/plot-"}
 diff_all<-as.data.frame(dailysteps_all$Ave_Steps-dailysteps_all2$x)
 names(diff_all)<-"diffsteps"
